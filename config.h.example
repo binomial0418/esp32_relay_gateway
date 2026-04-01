@@ -1,0 +1,19 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// --- Wi-Fi Station (連外網) ---
+const char *ssid_sta = "YOUR_WIFI_SSID";
+const char *pass_sta = "YOUR_WIFI_PASSWORD";
+
+// --- ESP32 AP (接收端) ---
+const char *ssid_ap = "ESP32_Torque_Log";
+const char *pass_ap = "12345678";
+
+// --- MQTT Broker ---
+const char *mqtt_server = "YOUR_MQTT_SERVER_IP";
+const int mqtt_port = 1883;
+const char *mqtt_user = "YOUR_MQTT_USERNAME";
+const char *mqtt_pass = "YOUR_MQTT_PASSWORD";
+const char *mqtt_topic = "your/topic/here";
+
+#endif
