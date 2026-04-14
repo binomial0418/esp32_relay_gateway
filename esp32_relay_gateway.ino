@@ -26,6 +26,8 @@ ProxySession proxySessions[3];
 unsigned long lastMqttRetry = 0;
 const unsigned long mqttRetryInterval = 5000;
 
+unsigned long lastStaRetry = 0;
+
 // ================================================================
 // HTTP 回應輔助函式
 // ================================================================
@@ -348,7 +350,7 @@ void setup() {
   delay(1000);
   Serial.println(F("\n--- ESP32 數據轉發網關啟動 ---"));
 
-  // 1. WiFi 雙模 (AP + STA)
+  // 1. WiFi 雙模 (AP + STA)，先啟動 AP
   WiFi.setSleep(false);
   WiFi.mode(WIFI_AP_STA);
 
@@ -360,9 +362,8 @@ void setup() {
   Serial.print(F("[WiFi] AP IP 位址: "));
   Serial.println(apIP);
 
-  WiFi.begin(ssid_sta, pass_sta);
-  Serial.print(F("[WiFi] 正在連接至外部 WiFi: "));
-  Serial.println(ssid_sta);
+  // 等待 DHCP server 就緒，避免手機連入時拿不到 IP 被標記為壞 AP
+  delay(500);
 
   // 2. DNS 攔截（所有域名 → 192.168.4.1）
   dnsServer.start(53, "*", apIP);
@@ -391,13 +392,19 @@ void setup() {
   udpQuic443.begin(443);
   Serial.println(F("[UDP] QUIC 攔截已啟動於 UDP port 443"));
 
-  // 5. MQTT
-  mqttClient.setServer(mqtt_server, mqtt_port);
-
-  // 6. WebSocket
+  // 5. WebSocket
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
   Serial.println(F("[WS] WebSocket Server 已啟動於端口 81"));
+
+  // 6. MQTT server 設定
+  mqttClient.setServer(mqtt_server, mqtt_port);
+
+  // 7. 所有本機服務就緒後，最後才連接 STA
+  //    ColorOS 優先靠 HTTP 204 判定 AP 好壞，STA 尚未連線不影響初次判定
+  WiFi.begin(ssid_sta, pass_sta);
+  Serial.print(F("[WiFi] 正在連接至外部 WiFi: "));
+  Serial.println(ssid_sta);
 }
 
 // ================================================================
@@ -431,5 +438,17 @@ void loop() {
       Serial.println(F("[WiFi] STA 連線中斷"));
     }
     lastStatus = currentStatus;
+  }
+
+  // STA 自動重連：斷線超過 10 秒則重試
+  if (WiFi.status() != WL_CONNECTED) {
+    unsigned long now = millis();
+    if (now - lastStaRetry > 10000) {
+      lastStaRetry = now;
+      WiFi.disconnect();
+      delay(100);
+      WiFi.begin(ssid_sta, pass_sta);
+      Serial.println(F("[WiFi] STA 重連中..."));
+    }
   }
 }
